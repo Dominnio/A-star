@@ -1,9 +1,8 @@
 //============================================================================
-// Name        : projekt_AAL.cpp
-// Author      : Dominik Orliñski
-// Version     :
-// Copyright   : Your copyright notice
-// Description : Hello World in C++, Ansi-style
+// Nazwa		: projekt_AAL.cpp
+// Autor		: Dominik Orliñski
+// Wersja		: 1.0
+// Nazwa		: Szeregowanie zadañ
 //============================================================================
 
 #define _BSD_SOURCE
@@ -12,6 +11,7 @@
 #include <iostream>
 #include <stdio.h>
 #include "Graf.h"
+#include "GrafX.h"
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -20,7 +20,7 @@
 #include <fstream>
 using namespace std;
 
-void generujTabele(int n, int skok, int lSkokow, int lPowtorzen, unsigned long* czasy);
+void generujTabele(int n, int skok, int lSkokow, int lPowtorzen, unsigned long* czasy, int* liczniki);
 
 int main(int argc, char* argv[]) {
 	if(argc<3){
@@ -28,6 +28,15 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 	switch(atoi(argv[1])){
+	case 0:
+	{
+		std::cout << "\n=================\nProgram uruchomiony w trybie 0.\n=================\n";
+		GrafX graf(atoi(argv[2]));
+		graf.wypiszGrafX();
+		graf.znajdzNajkrotszaSciezkeAlgorytmemA(argv[3]);
+		break;
+	}
+
 	case 1: // nazwaProgramu | trybWykonania | plikWejsciowy | plikWyjsciowy
 	{
 		std::cout << "\n=================\nProgram uruchomiony w trybie 1.\n=================\n";
@@ -73,24 +82,30 @@ int main(int argc, char* argv[]) {
 			return 0;
 		}
 		clock_t start;
+		int licznik = 0;
 		unsigned long* czasy = new unsigned long[atoi(argv[4]) * atoi(argv[5])];
+		int* liczniki = new int[atoi(argv[4])];
 		for(int i=0;i<atoi(argv[4]);++i){
 			for(int j=0;j<atoi(argv[5]);++j){
-				start = clock();
 				Graf graf(atoi(argv[2]) + i*atoi(argv[3]));
 				//printf( "Czas utworzenia grafu: %lu ms\n", clock() - start);
 				//std::cout.flush();
 				//std::cout<<"\n\n=======================\n\n";
 				start = clock();
-				graf.znajdzNajkrotszaSciezkeAlgorytmemA(argv[6]);
+				licznik += graf.znajdzNajkrotszaSciezkeAlgorytmemA(argv[6]);
 				czasy[i*atoi(argv[5]) + j] = clock() - start;
+				//graf.~Graf();
 				//printf( "\nCzas wyszukiwania rozwiazania A*: %lu ms\n\n", clock() - start );
 			}
 			std::cout << "Wykonano dla n rownego "<<atoi(argv[2]) + i*atoi(argv[3])<<"."<<std::endl;
+			licznik /= atoi(argv[5]);
+			std::cout << licznik << std::endl;
+			liczniki[i] = licznik;
+			licznik = 0;
 		}
-		const char* nazwaPliku; //= new char[strlen("plikWyjsciowy.txt")];
-		nazwaPliku = "plikWyjsciowy.txt";
-		generujTabele(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]), atoi(argv[5]), czasy);
+		generujTabele(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]), atoi(argv[5]), czasy, liczniki);
+		delete[] liczniki;
+		delete [] czasy;
 		break;
 	}
 	}
@@ -104,18 +119,15 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
-void generujTabele(int n, int skok, int lSkokow, int lPowtorzen, unsigned long* czasy){
+void generujTabele(int n, int skok, int lSkokow, int lPowtorzen, unsigned long* czasy, int* liczniki) {
 	FILE* plikWyjsciowy;
 	plikWyjsciowy = fopen("Tabela.txt", "a+");
-	char a;
-	float b;
-	unsigned long sredniCzas = 0;
-	unsigned long czasMediana = 0;
+	float sredniCzas = 0;
+	float czasMediana = 0;
 	float medianaZlozonosc = 0;
 	float T;
 	float E = 0;
 	float V = 0;
-	float tmp;
 	float q;
 	fprintf (plikWyjsciowy, "n\tt(n)[ms]\tq(n)\n");
 	int nMediana = 0;
@@ -124,17 +136,23 @@ void generujTabele(int n, int skok, int lSkokow, int lPowtorzen, unsigned long* 
 	}else{
 		if(rand()%2 == 0){
 			nMediana = n + skok*(lSkokow)/2;
-		}else{
-			nMediana = n + skok*(lSkokow)/2 - skok;
-		}
+		}//else{
+			//nMediana = n + skok*(lSkokow)/2 - skok;
+		//}
 	}
 	for(int i = 0;i<lPowtorzen;++i){
 		czasMediana += czasy[((nMediana-n)/skok)*lPowtorzen + i];
 	}
 	czasMediana /= lPowtorzen;
 	V = nMediana * exp2(nMediana - 1) + 1;
-	E = (V * (nMediana - 1) /2) + nMediana;
-	medianaZlozonosc = (V+E)* log(V);
+	float tmp = nMediana;
+	E += tmp;
+	for(int i=nMediana-1,k=1;i>0;--i,k++){
+		tmp *=i;
+		E += tmp;
+		tmp /=k;
+	}
+	medianaZlozonosc = 30 + 14*V + liczniki[((nMediana - n) / skok)] * (6 + 4 * V + n);
 	for(int j =0;j<lSkokow;j++){
 		T = 0;
 		E = 0;
@@ -146,9 +164,16 @@ void generujTabele(int n, int skok, int lSkokow, int lPowtorzen, unsigned long* 
 		}
 		sredniCzas /= lPowtorzen;
 		V = (n+j*skok) * exp2((n+j*skok) - 1) + 1;
-		E = (V * ((n+j*skok) - 1) /2) + (n+j*skok);
-		T =  (V+E)* log(V);
+		tmp = (n+j*skok);
+		E += tmp;
+		for(int i=(n+j*skok)-1,k=1;i>0;--i,k++){
+			tmp *=i;
+			E += tmp;
+			tmp /=k;
+		}
+		T = 30 + 14 * V + liczniki[j]*(6+4*V+n);
+		std::cout <<"V: " << V<<"\tE: "<<E<<"\tT_m / T: "<<medianaZlozonosc/T<<"\tt_m / t: "<<sredniCzas/czasMediana<<std::endl;
 		q = sredniCzas * medianaZlozonosc / T / czasMediana;
-		fprintf (plikWyjsciowy, "%d\t%lu\t\t%f\n",n+j*skok,sredniCzas,q);
+		fprintf (plikWyjsciowy, "%d\t%.2f\t\t%f\n",n+j*skok,sredniCzas,q);
 	}
 }
